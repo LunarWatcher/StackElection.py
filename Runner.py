@@ -32,24 +32,42 @@ class BotManagement(Cmd.Cog, name = "Bot management"):
     @Cmd.has_guild_permissions(administrator = True)
     async def setOutputHere(self, ctx):
         global config
-        if str(ctx.channel.guild.id) not in config:
-            config[str(ctx.channel.guild.id)] = {}
-        config[str(ctx.channel.guild.id)]["channel"] = ctx.channel.id
+        if str(ctx.channel.guild.id) not in config["servers"]:
+            config["servers"][str(ctx.channel.guild.id)] = {}
+        config["servers"][str(ctx.channel.guild.id)]["channel"] = ctx.channel.id
 
         commitConfig()
         await ctx.reply("Channel changed.")
+
+    @Cmd.command()
+    @Cmd.has_guild_permissions(administrator = True)
+    async def subscribe(self, ctx, site: str, lastElection: int):
+        global config
+        global network
+
+        if site not in network:
+            await ctx.reply("URL not found in the known network.")
+            return
+
+        if "network" not in config:
+            config["network"] = {}
+
+        config["network"][site] = lastElection
+        commitConfig()
+        await ctx.reply(f"Successfully set up <{site}> with last election being number {lastElection}")
 
 class ElectionCommands(Cmd.Cog, name = "Election commands"):
 
     def __init__(self, bot):
         self.bot = bot
 
+
+
 # }}}
 
 
 bot = Cmd.Bot("el!")
 bot.add_cog(BotManagement(bot))
-
 # Standard shit {{{
 @bot.listen("on_command_error")
 async def onGlobalError(ctx, error):
@@ -64,7 +82,25 @@ async def onGlobalError(ctx, error):
 
 @tasks.loop(seconds = 60 * 60 * 6)
 async def task():
+    global config
+
     print("henlo, logged in")
+
+    if "network" in config:
+        #                         vvvv create a copy, because we can't have nice things
+        for site, lastElection in list(config["network"].items()):
+            r = requests.get(f"{site}/election/{lastElection}")
+            if r.status_code != 404:
+                for server, sConfig in config["servers"].items():
+                    if "channel" not in sConfig:
+                        continue
+                    try:
+                        await bot.get_channel(sConfig["channel"]).send(f"Election started: {site}/election/{lastElection}")
+                    except:
+                        pass
+                    config["network"][site] = lastElection + 1
+    commitConfig()
+
 
 @bot.event
 async def on_ready():
@@ -105,5 +141,8 @@ else:
         network = json.load(f)
 
 # }}}
+
+if "servers" not in config:
+    config["servers"] = {}
 
 bot.run(API_KEY)
