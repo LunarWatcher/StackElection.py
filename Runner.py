@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import discord
 import discord.ext.commands as Cmd
 import discord.ext.tasks as tasks
