@@ -1,0 +1,6 @@
+conf.py
+
+/env
+sites.json
+__pycache__
+botconf.json
